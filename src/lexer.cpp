@@ -316,7 +316,7 @@ namespace utility {
                 continue;
             }
             else {
-                if(intent_ct > detent_ct) {
+                if(intent_ct > detent_ct && intent_ct > 1u) {
                     size_t intent_diff = intent_ct - detent_ct;
                     size_t cut_from_pos = last_not_intent_pos + 2u;
                     size_t cut_range = i - cut_from_pos;
@@ -325,8 +325,9 @@ namespace utility {
                     token_queue.insert(token_queue.cbegin() + cut_from_pos, intent_diff, token_type::Indent{});
                     sz -= cut_range;
                     max_idx -= cut_range;
+                    i -= cut_range;
                 }
-                else if(intent_ct < detent_ct) {
+                else if(intent_ct < detent_ct && detent_ct > 1u) {
                     size_t intent_diff = detent_ct - intent_ct;
                     size_t cut_from_pos = last_not_intent_pos + 2u;
                     size_t cut_range = i - cut_from_pos;
@@ -335,6 +336,7 @@ namespace utility {
                     token_queue.insert(token_queue.cbegin() + cut_from_pos, intent_diff, token_type::Dedent{});
                     sz -= cut_range;
                     max_idx -= cut_range;
+                    i -= cut_range;
                 }
                 else if(intent_ct != 0u && detent_ct != 0u && intent_ct == detent_ct) {
                     size_t cut_from_pos = last_not_intent_pos + 2u;
@@ -343,6 +345,7 @@ namespace utility {
                     token_queue.erase(token_queue.cbegin() + cut_from_pos, token_queue.cbegin() + cut_to_pos);
                     sz -= cut_range;
                     max_idx -= cut_range;
+                    i -= cut_range;
                 }
                 
                 
