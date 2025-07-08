@@ -112,8 +112,7 @@ void TestFieldAssignment() {
     runtime::Class empty("Empty"s, {}, nullptr);
     runtime::ClassInstance object{empty};
 
-    FieldAssignment assign_x(VariableValue{"self"s}, "x"s,
-                             make_unique<NumericConst>(runtime::Number(57)));
+    FieldAssignment assign_x(VariableValue{"self"s}, "x"s, make_unique<NumericConst>(runtime::Number(57)));
     FieldAssignment assign_y(VariableValue{"self"s}, "y"s, make_unique<NewInstance>(empty));
 
     Closure closure = {{"self"s, ObjectHolder::Share(object)}};
@@ -127,9 +126,7 @@ void TestFieldAssignment() {
     ASSERT_OBJECT_VALUE_EQUAL(object.Fields().at("x"s), 57);
 
     assign_y.Execute(closure, context);
-    FieldAssignment assign_yz(
-        VariableValue{vector<string>{"self"s, "y"s}}, "z"s,
-        make_unique<StringConst>(runtime::String("Hello, world! Hooray! Yes-yes!!!"s)));
+    FieldAssignment assign_yz(VariableValue{vector<string>{"self"s, "y"s}}, "z"s, make_unique<StringConst>(runtime::String("Hello, world! Hooray! Yes-yes!!!"s)));
     {
         ObjectHolder o = assign_yz.Execute(closure, context);
         ASSERT(o);
@@ -242,16 +239,10 @@ void TestBadAddition() {
 
     Closure empty;
 
-    ASSERT_THROWS(
-        Add(make_unique<NumericConst>(42), make_unique<StringConst>("4"s)).Execute(empty, context),
-        std::runtime_error);
-    ASSERT_THROWS(
-        Add(make_unique<StringConst>("4"s), make_unique<NumericConst>(42)).Execute(empty, context),
-        std::runtime_error);
-    ASSERT_THROWS(Add(make_unique<None>(), make_unique<StringConst>("4"s)).Execute(empty, context),
-                  std::runtime_error);
-    ASSERT_THROWS(Add(make_unique<None>(), make_unique<None>()).Execute(empty, context),
-                  std::runtime_error);
+    ASSERT_THROWS(Add(make_unique<NumericConst>(42), make_unique<StringConst>("4"s)).Execute(empty, context), std::runtime_error);
+    ASSERT_THROWS(Add(make_unique<StringConst>("4"s), make_unique<NumericConst>(42)).Execute(empty, context), std::runtime_error);
+    ASSERT_THROWS(Add(make_unique<None>(), make_unique<StringConst>("4"s)).Execute(empty, context), std::runtime_error);
+    ASSERT_THROWS(Add(make_unique<None>(), make_unique<None>()).Execute(empty, context), std::runtime_error);
 
     ASSERT(context.output.str().empty());
 }
@@ -260,16 +251,12 @@ void TestSuccessfulClassInstanceAdd() {
     runtime::DummyContext context;
 
     vector<runtime::Method> methods;
-    methods.push_back({"__add__"s,
-                       {"value_"s},
-                       make_unique<Add>(make_unique<StringConst>("hello, "s),
-                                        make_unique<VariableValue>("value_"s))});
+    methods.push_back({"__add__"s, {"value_"s}, make_unique<Add>(make_unique<StringConst>("hello, "s), make_unique<VariableValue>("value_"s))});
 
     runtime::Class cls("BoxedValue"s, std::move(methods), nullptr);
 
     Closure empty;
-    auto result = Add(make_unique<NewInstance>(cls), make_unique<StringConst>("world"s))
-                      .Execute(empty, context);
+    auto result = Add(make_unique<NewInstance>(cls), make_unique<StringConst>("world"s)).Execute(empty, context);
     ASSERT_OBJECT_VALUE_EQUAL(result, "hello, world"s);
 
     ASSERT(context.output.str().empty());
@@ -313,19 +300,9 @@ void TestFields() {
 
     vector<runtime::Method> methods;
 
-    methods.push_back({"__init__"s,
-                       {},
-                       {make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s,
-                                                     make_unique<NumericConst>(0))}});
-    methods.push_back(
-        {"value"s, {}, {make_unique<VariableValue>(vector<string>{"self"s, "value"s})}});
-    methods.push_back(
-        {"add"s,
-         {"x"s},
-         {make_unique<FieldAssignment>(
-             VariableValue{"self"s}, "value"s,
-             make_unique<Add>(make_unique<VariableValue>(vector<string>{"self"s, "value"s}),
-                              make_unique<VariableValue>("x"s)))}});
+    methods.push_back({"__init__"s, {}, {make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s, make_unique<NumericConst>(0))}});
+    methods.push_back({"value"s, {}, {make_unique<VariableValue>(vector<string>{"self"s, "value"s})}});
+    methods.push_back({"add"s, {"x"s}, {make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s, make_unique<Add>(make_unique<VariableValue>(vector<string>{"self"s, "value"s}), make_unique<VariableValue>("x"s)))}});
 
     runtime::Class cls("BoxedValue"s, std::move(methods), nullptr);
     runtime::ClassInstance inst(cls);
@@ -347,10 +324,7 @@ void TestFields() {
 void TestBaseClass() {
     vector<runtime::Method> methods;
     methods.push_back({"GetValue"s, {}, make_unique<VariableValue>(vector{"self"s, "value"s})});
-    methods.push_back({"SetValue"s,
-                       {"x"s},
-                       make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s,
-                                                    make_unique<ast::VariableValue>("x"s))});
+    methods.push_back({"SetValue"s, {"x"s}, make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s, make_unique<ast::VariableValue>("x"s))});
 
     runtime::Class cls("BoxedValue"s, move(methods), nullptr);
 
@@ -373,10 +347,7 @@ void TestBaseClass() {
 void TestInheritance() {
     vector<runtime::Method> methods;
     methods.push_back({"GetValue"s, {}, make_unique<VariableValue>(vector{"self"s, "value"s})});
-    methods.push_back({"SetValue"s,
-                       {"x"s},
-                       make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s,
-                                                    make_unique<VariableValue>("x"s))});
+    methods.push_back({"SetValue"s, {"x"s}, make_unique<FieldAssignment>(VariableValue{"self"s}, "value"s, make_unique<VariableValue>("x"s))});
 
     runtime::Class base("BoxedValue"s, std::move(methods), nullptr);
 
@@ -412,9 +383,7 @@ void TestOr() {
         Or or_statement{make_unique<BoolConst>(lhs), make_unique<BoolConst>(rhs)};
         Closure closure;
         runtime::DummyContext context;
-        ASSERT_EQUAL(runtime::Equal(or_statement.Execute(closure, context),
-                                    ObjectHolder::Own(runtime::Bool(true)), context),
-                     lhs || rhs);
+        ASSERT_EQUAL(runtime::Equal(or_statement.Execute(closure, context), ObjectHolder::Own(runtime::Bool(true)), context), lhs || rhs);
     };
 
     test_or(true, true);
@@ -428,9 +397,7 @@ void TestAnd() {
         And and_statement{make_unique<BoolConst>(lhs), make_unique<BoolConst>(rhs)};
         Closure closure;
         runtime::DummyContext context;
-        ASSERT_EQUAL(runtime::Equal(and_statement.Execute(closure, context),
-                                    ObjectHolder::Own(runtime::Bool(true)), context),
-                     lhs && rhs);
+        ASSERT_EQUAL(runtime::Equal(and_statement.Execute(closure, context), ObjectHolder::Own(runtime::Bool(true)), context), lhs && rhs);
     };
 
     test_and(true, true);
@@ -444,9 +411,7 @@ void TestNot() {
         Not not_statement{make_unique<BoolConst>(arg)};
         Closure closure;
         runtime::DummyContext context;
-        ASSERT_EQUAL(runtime::Equal(not_statement.Execute(closure, context),
-                                    ObjectHolder::Own(runtime::Bool(true)), context),
-                     !arg);
+        ASSERT_EQUAL(runtime::Equal(not_statement.Execute(closure, context), ObjectHolder::Own(runtime::Bool(true)), context), !arg);
     };
 
     test_not(true);

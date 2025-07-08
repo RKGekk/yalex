@@ -28,21 +28,22 @@ ObjectHolder VariableValue::Execute(Closure& closure, Context& context) {
     }
 
     const runtime::Closure* closure_ptr = &closure;
-    size_t i = 0u;
+    size_t i = 1u;
     size_t sz = m_id_seq.size();
     for(; i < sz; ++i) {
-        const std::string& id_name = m_id_seq[i];
+        const std::string& id_name = m_id_seq[i - 1u];
         runtime::ClassInstance* instance_ptr = closure_ptr->at(id_name).TryAs<runtime::ClassInstance>();
         if(instance_ptr) {
             closure_ptr = &instance_ptr->Fields();
             continue;
         }
+        ++i;
         break;
     }
-    if(i != (sz - 1u)) {
+    if(i != sz) {
         throw std::runtime_error("Closure doesn't have variable with name: "s + m_id_seq[i - 1u]);
     }
-    return closure_ptr->at(m_id_seq[i]);
+    return closure_ptr->at(m_id_seq[i - 1u]);
 }
 
 Assignment::Assignment(std::string var, std::unique_ptr<runtime::Executable> rv) : m_var_to_assign(std::move(var)), m_stm_to_execute(std::move(rv)) {}
@@ -53,7 +54,7 @@ ObjectHolder Assignment::Execute(Closure& closure, Context& context) {
 }
 
 FieldAssignment::FieldAssignment(VariableValue object, std::string field_name, std::unique_ptr<runtime::Executable> rv) : m_object_to_store(std::move(object)), m_field_name(std::move(field_name)), m_stm_to_execute(std::move(rv)) {
-    ASSERT_EQUAL(field_name.size() > 0, true);
+    ASSERT_EQUAL(m_field_name.size() > 0, true);
 }
 
 ObjectHolder FieldAssignment::Execute(Closure& closure, Context& context) {
@@ -262,9 +263,9 @@ ObjectHolder Not::Execute(Closure& closure, Context& context) {
         }
     }
     if(runtime::IsTrue(value_holder)) {
-        return runtime::obj_const::OBJECT_HOLDER_TRUE;
+        return runtime::obj_const::OBJECT_HOLDER_FALSE;
     }
-    return runtime::obj_const::OBJECT_HOLDER_FALSE;
+    return runtime::obj_const::OBJECT_HOLDER_TRUE;
 }
 
 ObjectHolder Compound::Execute(Closure& closure, Context& context) {
