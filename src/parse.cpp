@@ -1,6 +1,7 @@
 #include "parse.h"
 
 #include "lexer.h"
+#include "runtime.h"
 #include "statement.h"
 
 using namespace std;
@@ -19,15 +20,13 @@ bool operator!=(const parse::Token& token, char c) {
 
 class Parser {
 public:
-    explicit Parser(parse::Lexer& lexer)
-        : lexer_(lexer) {
-    }
+    explicit Parser(parse::Lexer& lexer) : m_lexer(lexer) {}
 
     // Program -> eps
     //          | Statement \n Program
-    unique_ptr<ast::Statement> ParseProgram() {
+    unique_ptr<runtime::Executable> ParseProgram() {
         auto result = make_unique<ast::Compound>();
-        while (!lexer_.CurrentToken().Is<TokenType::Eof>()) {
+        while (!m_lexer.CurrentToken().Is<TokenType::Eof>()) {
             result->AddStatement(ParseStatement());
         }
 
@@ -36,47 +35,45 @@ public:
 
 private:
     // Suite -> NEWLINE INDENT (Statement)+ DEDENT
-    unique_ptr<ast::Statement> ParseSuite()  // NOLINT
-    {
-        lexer_.Expect<TokenType::Newline>();
-        lexer_.ExpectNext<TokenType::Indent>();
+    unique_ptr<runtime::Executable> ParseSuite() {
+        m_lexer.Expect<TokenType::Newline>();
+        m_lexer.ExpectNext<TokenType::Indent>();
 
-        lexer_.NextToken();
+        m_lexer.NextToken();
 
         auto result = make_unique<ast::Compound>();
-        while (!lexer_.CurrentToken().Is<TokenType::Dedent>()) {
-            result->AddStatement(ParseStatement());  // NOLINT
+        while (!m_lexer.CurrentToken().Is<TokenType::Dedent>()) {
+            result->AddStatement(ParseStatement());
         }
 
-        lexer_.Expect<TokenType::Dedent>();
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Dedent>();
+        m_lexer.NextToken();
 
         return result;
     }
 
     // Methods -> [def id(Params) : Suite]*
-    vector<runtime::Method> ParseMethods()  // NOLINT
-    {
+    vector<runtime::Method> ParseMethods() {
         vector<runtime::Method> result;
 
-        while (lexer_.CurrentToken().Is<TokenType::Def>()) {
+        while (m_lexer.CurrentToken().Is<TokenType::Def>()) {
             runtime::Method m;
 
-            m.name = lexer_.ExpectNext<TokenType::Id>().value;
-            lexer_.ExpectNext<TokenType::Char>('(');
+            m.name = m_lexer.ExpectNext<TokenType::Id>().value;
+            m_lexer.ExpectNext<TokenType::Char>('(');
 
-            if (lexer_.NextToken().Is<TokenType::Id>()) {
-                m.formal_params.push_back(lexer_.Expect<TokenType::Id>().value);
-                while (lexer_.NextToken() == ',') {
-                    m.formal_params.push_back(lexer_.ExpectNext<TokenType::Id>().value);
+            if (m_lexer.NextToken().Is<TokenType::Id>()) {
+                m.formal_params.push_back(m_lexer.Expect<TokenType::Id>().value);
+                while (m_lexer.NextToken() == ',') {
+                    m.formal_params.push_back(m_lexer.ExpectNext<TokenType::Id>().value);
                 }
             }
 
-            lexer_.Expect<TokenType::Char>(')');
-            lexer_.ExpectNext<TokenType::Char>(':');
-            lexer_.NextToken();
+            m_lexer.Expect<TokenType::Char>(')');
+            m_lexer.ExpectNext<TokenType::Char>(':');
+            m_lexer.NextToken();
 
-            m.body = std::make_unique<ast::MethodBody>(ParseSuite());  // NOLINT
+            m.body = std::make_unique<ast::MethodBody>(ParseSuite());
 
             result.push_back(std::move(m));
         }
@@ -84,35 +81,34 @@ private:
     }
 
     // ClassDefinition -> Id ['(' Id ')'] : new_line indent MethodList dedent
-    unique_ptr<ast::Statement> ParseClassDefinition()  // NOLINT
-    {
-        string class_name = lexer_.Expect<TokenType::Id>().value;
+    unique_ptr<runtime::Executable> ParseClassDefinition() {
+        string class_name = m_lexer.Expect<TokenType::Id>().value;
 
-        lexer_.NextToken();
+        m_lexer.NextToken();
 
         const runtime::Class* base_class = nullptr;
-        if (lexer_.CurrentToken() == '(') {
-            auto name = lexer_.ExpectNext<TokenType::Id>().value;
-            lexer_.ExpectNext<TokenType::Char>(')');
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken() == '(') {
+            auto name = m_lexer.ExpectNext<TokenType::Id>().value;
+            m_lexer.ExpectNext<TokenType::Char>(')');
+            m_lexer.NextToken();
 
-            auto it = declared_classes_.find(name);
-            if (it == declared_classes_.end()) {
+            auto it = m_declared_classes.find(name);
+            if (it == m_declared_classes.end()) {
                 throw ParseError("Base class "s + name + " not found for class "s + class_name);
             }
-            base_class = static_cast<const runtime::Class*>(it->second.Get());  // NOLINT
+            base_class = static_cast<const runtime::Class*>(it->second.Get());
         }
 
-        lexer_.Expect<TokenType::Char>(':');
-        lexer_.ExpectNext<TokenType::Newline>();
-        lexer_.ExpectNext<TokenType::Indent>();
-        lexer_.ExpectNext<TokenType::Def>();
-        vector<runtime::Method> methods = ParseMethods();  // NOLINT
+        m_lexer.Expect<TokenType::Char>(':');
+        m_lexer.ExpectNext<TokenType::Newline>();
+        m_lexer.ExpectNext<TokenType::Indent>();
+        m_lexer.ExpectNext<TokenType::Def>();
+        vector<runtime::Method> methods = ParseMethods();
 
-        lexer_.Expect<TokenType::Dedent>();
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Dedent>();
+        m_lexer.NextToken();
 
-        auto [it, inserted] = declared_classes_.insert({
+        auto [it, inserted] = m_declared_classes.insert({
             class_name,
             runtime::ObjectHolder::Own(runtime::Class(class_name, std::move(methods), base_class)),
         });
@@ -125,10 +121,10 @@ private:
     }
 
     vector<string> ParseDottedIds() {
-        vector<string> result(1, lexer_.Expect<TokenType::Id>().value);
+        vector<string> result(1, m_lexer.Expect<TokenType::Id>().value);
 
-        while (lexer_.NextToken() == '.') {
-            result.push_back(lexer_.ExpectNext<TokenType::Id>().value);
+        while (m_lexer.NextToken() == '.') {
+            result.push_back(m_lexer.ExpectNext<TokenType::Id>().value);
         }
 
         return result;
@@ -136,15 +132,15 @@ private:
 
     //  AssgnOrCall -> DottedIds = Expr
     //               | DottedIds '(' ExprList ')'
-    unique_ptr<ast::Statement> ParseAssignmentOrCall() {
-        lexer_.Expect<TokenType::Id>();
+    unique_ptr<runtime::Executable> ParseAssignmentOrCall() {
+        m_lexer.Expect<TokenType::Id>();
 
         vector<string> id_list = ParseDottedIds();
         string last_name = id_list.back();
         id_list.pop_back();
 
-        if (lexer_.CurrentToken() == '=') {
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken() == '=') {
+            m_lexer.NextToken();
 
             if (id_list.empty()) {
                 return make_unique<ast::Assignment>(std::move(last_name), ParseTest());
@@ -152,31 +148,31 @@ private:
             return make_unique<ast::FieldAssignment>(ast::VariableValue{std::move(id_list)},
                                                      std::move(last_name), ParseTest());
         }
-        lexer_.Expect<TokenType::Char>('(');
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Char>('(');
+        m_lexer.NextToken();
 
         if (id_list.empty()) {
             throw ParseError("Mython doesn't support functions, only methods: "s + last_name);
         }
 
-        vector<unique_ptr<ast::Statement>> args;
-        if (lexer_.CurrentToken() != ')') {
+        vector<unique_ptr<runtime::Executable>> args;
+        if (m_lexer.CurrentToken() != ')') {
             args = ParseTestList();
         }
-        lexer_.Expect<TokenType::Char>(')');
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Char>(')');
+        m_lexer.NextToken();
 
         return make_unique<ast::MethodCall>(make_unique<ast::VariableValue>(std::move(id_list)),
                                             std::move(last_name), std::move(args));
     }
 
     // Expr -> Adder ['+'/'-' Adder]*
-    unique_ptr<ast::Statement> ParseExpression()  // NOLINT
-    {
-        unique_ptr<ast::Statement> result = ParseAdder();
-        while (lexer_.CurrentToken() == '+' || lexer_.CurrentToken() == '-') {
-            char op = lexer_.CurrentToken().As<TokenType::Char>().value;
-            lexer_.NextToken();
+    unique_ptr<runtime::Executable> ParseExpression() {
+
+        unique_ptr<runtime::Executable> result = ParseAdder();
+        while (m_lexer.CurrentToken() == '+' || m_lexer.CurrentToken() == '-') {
+            char op = m_lexer.CurrentToken().As<TokenType::Char>().value;
+            m_lexer.NextToken();
 
             if (op == '+') {
                 result = make_unique<ast::Add>(std::move(result), ParseAdder());
@@ -188,12 +184,11 @@ private:
     }
 
     // Adder -> Mult ['*'/'/' Mult]*
-    unique_ptr<ast::Statement> ParseAdder()  // NOLINT
-    {
-        unique_ptr<ast::Statement> result = ParseMult();
-        while (lexer_.CurrentToken() == '*' || lexer_.CurrentToken() == '/') {
-            char op = lexer_.CurrentToken().As<TokenType::Char>().value;
-            lexer_.NextToken();
+    unique_ptr<runtime::Executable> ParseAdder() {
+        unique_ptr<runtime::Executable> result = ParseMult();
+        while (m_lexer.CurrentToken() == '*' || m_lexer.CurrentToken() == '/') {
+            char op = m_lexer.CurrentToken().As<TokenType::Char>().value;
+            m_lexer.NextToken();
 
             if (op == '*') {
                 result = make_unique<ast::Mult>(std::move(result), ParseMult());
@@ -213,56 +208,55 @@ private:
     //       | FALSE
     //       | DottedIds '(' ExprList ')'
     //       | DottedIds
-    unique_ptr<ast::Statement> ParseMult()  // NOLINT
-    {
-        if (lexer_.CurrentToken() == '(') {
-            lexer_.NextToken();
+    unique_ptr<runtime::Executable> ParseMult() {
+        if (m_lexer.CurrentToken() == '(') {
+            m_lexer.NextToken();
             auto result = ParseTest();
-            lexer_.Expect<TokenType::Char>(')');
-            lexer_.NextToken();
+            m_lexer.Expect<TokenType::Char>(')');
+            m_lexer.NextToken();
             return result;
         }
-        if (lexer_.CurrentToken() == '-') {
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken() == '-') {
+            m_lexer.NextToken();
             return make_unique<ast::Mult>(ParseMult(), make_unique<ast::NumericConst>(-1));
         }
-        if (const auto* num = lexer_.CurrentToken().TryAs<TokenType::Number>()) {
+        if (const auto* num = m_lexer.CurrentToken().TryAs<TokenType::Number>()) {
             int result = num->value;
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::NumericConst>(result);
         }
-        if (const auto* str = lexer_.CurrentToken().TryAs<TokenType::String>()) {
+        if (const auto* str = m_lexer.CurrentToken().TryAs<TokenType::String>()) {
             string result = str->value;
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::StringConst>(std::move(result));
         }
-        if (lexer_.CurrentToken().Is<TokenType::True>()) {
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken().Is<TokenType::True>()) {
+            m_lexer.NextToken();
             return make_unique<ast::BoolConst>(runtime::Bool(true));
         }
-        if (lexer_.CurrentToken().Is<TokenType::False>()) {
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken().Is<TokenType::False>()) {
+            m_lexer.NextToken();
             return make_unique<ast::BoolConst>(runtime::Bool(false));
         }
-        if (lexer_.CurrentToken().Is<TokenType::None>()) {
-            lexer_.NextToken();
+        if (m_lexer.CurrentToken().Is<TokenType::None>()) {
+            m_lexer.NextToken();
             return make_unique<ast::None>();
         }
 
         return ParseDottedIdsInMultExpr();
     }
 
-    std::unique_ptr<ast::Statement> ParseDottedIdsInMultExpr() {
+    std::unique_ptr<runtime::Executable> ParseDottedIdsInMultExpr() {
         vector<string> names = ParseDottedIds();
 
-        if (lexer_.CurrentToken() == '(') {
+        if (m_lexer.CurrentToken() == '(') {
             // various calls
-            vector<unique_ptr<ast::Statement>> args;
-            if (lexer_.NextToken() != ')') {
+            vector<unique_ptr<runtime::Executable>> args;
+            if (m_lexer.NextToken() != ')') {
                 args = ParseTestList();
             }
-            lexer_.Expect<TokenType::Char>(')');
-            lexer_.NextToken();
+            m_lexer.Expect<TokenType::Char>(')');
+            m_lexer.NextToken();
 
             auto method_name = names.back();
             names.pop_back();
@@ -272,7 +266,7 @@ private:
                     make_unique<ast::VariableValue>(std::move(names)), std::move(method_name),
                     std::move(args));
             }
-            if (auto it = declared_classes_.find(method_name); it != declared_classes_.end()) {
+            if (auto it = m_declared_classes.find(method_name); it != m_declared_classes.end()) {
                 return make_unique<ast::NewInstance>(
                     static_cast<const runtime::Class&>(*it->second), std::move(args));  // NOLINT
             }
@@ -287,35 +281,33 @@ private:
         return make_unique<ast::VariableValue>(std::move(names));
     }
 
-    vector<unique_ptr<ast::Statement>> ParseTestList()  // NOLINT
-    {
-        vector<unique_ptr<ast::Statement>> result;
+    vector<unique_ptr<runtime::Executable>> ParseTestList() {
+        vector<unique_ptr<runtime::Executable>> result;
         result.push_back(ParseTest());
 
-        while (lexer_.CurrentToken() == ',') {
-            lexer_.NextToken();
+        while (m_lexer.CurrentToken() == ',') {
+            m_lexer.NextToken();
             result.push_back(ParseTest());
         }
         return result;
     }
 
     // Condition -> if LogicalExpr: Suite [else: Suite]
-    unique_ptr<ast::Statement> ParseCondition()  // NOLINT
-    {
-        lexer_.Expect<TokenType::If>();
-        lexer_.NextToken();
+    unique_ptr<runtime::Executable> ParseCondition() {
+        m_lexer.Expect<TokenType::If>();
+        m_lexer.NextToken();
 
         auto condition = ParseTest();
 
-        lexer_.Expect<TokenType::Char>(':');
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Char>(':');
+        m_lexer.NextToken();
 
         auto if_body = ParseSuite();
 
-        unique_ptr<ast::Statement> else_body;
-        if (lexer_.CurrentToken().Is<TokenType::Else>()) {
-            lexer_.ExpectNext<TokenType::Char>(':');
-            lexer_.NextToken();
+        unique_ptr<runtime::Executable> else_body;
+        if (m_lexer.CurrentToken().Is<TokenType::Else>()) {
+            m_lexer.ExpectNext<TokenType::Char>(':');
+            m_lexer.NextToken();
             else_body = ParseSuite();
         }
 
@@ -327,69 +319,65 @@ private:
     // AndTest -> NotTest [AND NotTest]
     // NotTest -> [NOT] NotTest
     //          | Comparison
-    unique_ptr<ast::Statement> ParseTest()  // NOLINT
-    {
+    unique_ptr<runtime::Executable> ParseTest() {
         auto result = ParseAndTest();
-        while (lexer_.CurrentToken().Is<TokenType::Or>()) {
-            lexer_.NextToken();
+        while (m_lexer.CurrentToken().Is<TokenType::Or>()) {
+            m_lexer.NextToken();
             result = make_unique<ast::Or>(std::move(result), ParseAndTest());
         }
         return result;
     }
 
-    unique_ptr<ast::Statement> ParseAndTest()  // NOLINT
-    {
+    unique_ptr<runtime::Executable> ParseAndTest() {
         auto result = ParseNotTest();
-        while (lexer_.CurrentToken().Is<TokenType::And>()) {
-            lexer_.NextToken();
+        while (m_lexer.CurrentToken().Is<TokenType::And>()) {
+            m_lexer.NextToken();
             result = make_unique<ast::And>(std::move(result), ParseNotTest());
         }
         return result;
     }
 
-    unique_ptr<ast::Statement> ParseNotTest()  // NOLINT
-    {
-        if (lexer_.CurrentToken().Is<TokenType::Not>()) {
-            lexer_.NextToken();
-            return make_unique<ast::Not>(ParseNotTest());  // NOLINT
+    unique_ptr<runtime::Executable> ParseNotTest() {
+        if (m_lexer.CurrentToken().Is<TokenType::Not>()) {
+            m_lexer.NextToken();
+            return make_unique<ast::Not>(ParseNotTest());
         }
         return ParseComparison();
     }
 
     // Comparison -> Expr [COMP_OP Expr]
-    unique_ptr<ast::Statement> ParseComparison()  // NOLINT
-    {
+    unique_ptr<runtime::Executable> ParseComparison() {
         auto result = ParseExpression();
 
-        const auto tok = lexer_.CurrentToken();
+        const auto tok = m_lexer.CurrentToken();
 
         if (tok == '<') {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::Less, std::move(result),
                                                 ParseExpression());
         }
         if (tok == '>') {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::Greater, std::move(result),
                                                 ParseExpression());
         }
         if (tok.Is<TokenType::Eq>()) {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::Equal, std::move(result),
                                                 ParseExpression());
         }
         if (tok.Is<TokenType::NotEq>()) {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::NotEqual, std::move(result),
                                                 ParseExpression());
         }
         if (tok.Is<TokenType::LessOrEq>()) {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::LessOrEqual, std::move(result),
                                                 ParseExpression());
         }
         if (tok.Is<TokenType::GreaterOrEq>()) {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Comparison>(runtime::GreaterOrEqual, std::move(result),
                                                 ParseExpression());
         }
@@ -399,37 +387,36 @@ private:
     // Statement -> SimpleStatement Newline
     //           | class ClassDefinition
     //           | if Condition
-    unique_ptr<ast::Statement> ParseStatement()  // NOLINT
-    {
-        const auto& tok = lexer_.CurrentToken();
+    unique_ptr<runtime::Executable> ParseStatement() {
+        const auto& tok = m_lexer.CurrentToken();
 
         if (tok.Is<TokenType::Class>()) {
-            lexer_.NextToken();
-            return ParseClassDefinition();  // NOLINT
+            m_lexer.NextToken();
+            return ParseClassDefinition();
         }
         if (tok.Is<TokenType::If>()) {
             return ParseCondition();
         }
         auto result = ParseSimpleStatement();
-        lexer_.Expect<TokenType::Newline>();
-        lexer_.NextToken();
+        m_lexer.Expect<TokenType::Newline>();
+        m_lexer.NextToken();
         return result;
     }
 
     // StatementBody -> return Expression
     //               | print ExpressionList
     //               | AssignmentOrCall
-    unique_ptr<ast::Statement> ParseSimpleStatement() {
-        const auto& tok = lexer_.CurrentToken();
+    unique_ptr<runtime::Executable> ParseSimpleStatement() {
+        const auto& tok = m_lexer.CurrentToken();
 
         if (tok.Is<TokenType::Return>()) {
-            lexer_.NextToken();
+            m_lexer.NextToken();
             return make_unique<ast::Return>(ParseTest());
         }
         if (tok.Is<TokenType::Print>()) {
-            lexer_.NextToken();
-            vector<unique_ptr<ast::Statement>> args;
-            if (!lexer_.CurrentToken().Is<TokenType::Newline>()) {
+            m_lexer.NextToken();
+            vector<unique_ptr<runtime::Executable>> args;
+            if (!m_lexer.CurrentToken().Is<TokenType::Newline>()) {
                 args = ParseTestList();
             }
             return make_unique<ast::Print>(std::move(args));
@@ -437,8 +424,8 @@ private:
         return ParseAssignmentOrCall();
     }
 
-    parse::Lexer& lexer_;
-    runtime::Closure declared_classes_;
+    parse::Lexer& m_lexer;
+    runtime::Closure m_declared_classes;
 };
 
 }  // namespace

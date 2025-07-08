@@ -109,6 +109,36 @@ using QueueContainer = std::deque<T>;
 using TokenQueue = QueueContainer<Token>;
 
 namespace token_const {
+    using namespace std::literals;
+    
+    static const std::string SELF("self"s);
+    static const std::string TRUE("True"s);
+    static const std::string FALSE("False"s);
+    static const std::string CLASS("Class"s);
+    static const std::string ADD_METHOD = "__add__"s;
+    static const std::string SUB_METHOD = "__sub__"s;
+    static const std::string MUL_METHOD = "__mul__"s;
+    static const std::string DIV_METHOD = "__truediv__"s;
+    static const std::string INIT_METHOD = "__init__"s;
+    static const std::string HASH_METHOD = "__hash__"s;
+    static const std::string STR_METHOD("__str__"s);
+    static const std::string EQ_METHOD("__eq__"s);
+    static const std::string NE_METHOD("__ne__"s);
+    static const std::string LT_METHOD("__lt__"s);
+    static const std::string LE_METHOD("__le__"s);
+    static const std::string GT_METHOD("__gt__"s);
+    static const std::string GE_METHOD("__ge__"s);
+    static const std::string LEN_METHOD("__len__"s);
+    static const std::string BOOL_METHOD("__bool__"s);
+    static const std::string CALL_METHOD("__call__"s);
+    static const std::string REPR_METHOD("__repr__"s);
+    static const std::string ABS_METHOD("__abs__"s);
+    static const std::string GETITEM_METHOD("__getitem__"s);
+    static const std::string SETITEM_METHOD("__setitem__"s);
+    static const std::string DELITEM_METHOD("__delitem__"s);
+    static const std::string ITER_METHOD("__iter__"s);
+    static const std::string NEXT_METHOD("__next__"s);
+    
     static const size_t INDENT_STEP = 2;
 
     static const std::unordered_set<char> OPERATOR_CHAR = {':', '(', ')', ',', '.', '+', '-', '*', '/', '!', '>', '<', '='};

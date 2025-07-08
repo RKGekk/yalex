@@ -1,5 +1,6 @@
 #include "lexer.h"
 #include "parse.h"
+#include "runtime.h"
 #include "statement.h"
 #include "test_runner_p.h"
 
@@ -7,7 +8,7 @@ using namespace std;
 
 namespace parse {
 
-unique_ptr<ast::Statement> ParseProgramFromString(const string& program) {
+unique_ptr<runtime::Executable> ParseProgramFromString(const string& program) {
     istringstream is(program);
     parse::Lexer lexer(is);
     return ParseProgram(lexer);

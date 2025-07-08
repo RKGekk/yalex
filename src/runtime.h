@@ -7,19 +7,7 @@
 #include <utility>
 #include <vector>
 
-using namespace std::literals;
-
 namespace runtime {
-
-namespace consts {
-    static const std::string SELF("self"s);
-    static const std::string TRUE("True"s);
-    static const std::string FALSE("False"s);
-    static const std::string CLASS("Class"s);
-    static const std::string STR("__str__"s);
-    static const std::string EQ("__eq__"s);
-    static const std::string LT("__lt__"s);
-}
 
 // Контекст исполнения инструкций Mython
 class Context {
@@ -45,6 +33,11 @@ class ObjectHolder {
 public:
     // Создаёт пустое значение
     ObjectHolder() = default;
+    ObjectHolder(const ObjectHolder&) = default;
+    ObjectHolder(ObjectHolder&&) = default;
+    ObjectHolder& operator=(const ObjectHolder&) = default;
+    ObjectHolder& operator=(ObjectHolder&&) = default;
+
 
     // Возвращает ObjectHolder, владеющий объектом типа T
     // Тип T - конкретный класс-наследник Object.
@@ -129,6 +122,11 @@ public:
 
     void Print(std::ostream& os, Context& context) override;
 };
+
+namespace obj_const {
+    static const ObjectHolder OBJECT_HOLDER_TRUE = ObjectHolder::Own(runtime::Bool(true));
+    static const ObjectHolder OBJECT_HOLDER_FALSE = ObjectHolder::Own(runtime::Bool(false));
+}
 
 // Интерфейс для выполнения действий над объектами Mython
 class Executable {

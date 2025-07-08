@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "lexer.h"
 
 #include <cassert>
 #include <optional>
@@ -58,7 +59,7 @@ bool IsTrue(const ObjectHolder& object) {
 }
 
 void Bool::Print(std::ostream& os, [[maybe_unused]] Context& context) {
-    os << (GetValue() ? consts::TRUE : consts::FALSE);
+    os << (GetValue() ? parse::token_const::TRUE : parse::token_const::FALSE);
 }
 
 Class::Class(std::string name, std::vector<Method> methods, const Class* parent) : m_name(name)
@@ -82,7 +83,7 @@ const Method* Class::GetMethod(const std::string& name) const {
 }
 
 void Class::Print(std::ostream& os, Context& context) {
-    os << consts::CLASS << ' ' << m_name;
+    os << parse::token_const::CLASS << ' ' << m_name;
 }
 
 const std::string& Class::GetName() const {
@@ -92,8 +93,8 @@ const std::string& Class::GetName() const {
 ClassInstance::ClassInstance(const Class& cls) : m_type(cls) {}
 
 void ClassInstance::Print(std::ostream& os, Context& context) {
-    if (HasMethod(consts::STR, 0)) {
-        ObjectHolder result_holder = Call(consts::STR, NOPARAMS, context);
+    if (HasMethod(parse::token_const::STR_METHOD, 0)) {
+        ObjectHolder result_holder = Call(parse::token_const::STR_METHOD, NOPARAMS, context);
         result_holder.Get()->Print(os, context);
     }
     else {
@@ -132,7 +133,7 @@ Closure ClassInstance::MixinLocalClosure(const std::vector<std::string>& formal_
     assert(formal_params.size() == actual_args.size());
 
     Closure closure;
-    closure.emplace(consts::SELF, ObjectHolder::Share(*this));
+    closure.emplace(parse::token_const::SELF, ObjectHolder::Share(*this));
     for (size_t i = 0; i < formal_params.size(); ++i) {
         closure.emplace(formal_params.at(i), actual_args.at(i));
     }
@@ -165,11 +166,11 @@ bool MakeComparison(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& c
 }
 
 bool Equal(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
-    return MakeComparison(lhs, rhs, context, consts::EQ, std::equal_to{});
+    return MakeComparison(lhs, rhs, context, parse::token_const::EQ_METHOD, std::equal_to{});
 }
 
 bool Less(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
-    return MakeComparison(lhs, rhs, context, consts::LT, std::less{});
+    return MakeComparison(lhs, rhs, context, parse::token_const::LT_METHOD, std::less{});
 }
 
 bool NotEqual(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {

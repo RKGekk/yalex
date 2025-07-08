@@ -161,7 +161,7 @@ void TestPrintMultipleStatements() {
     runtime::String hello("hello"s);
     Closure closure = {{"word"s, ObjectHolder::Share(hello)}, {"empty"s, ObjectHolder::None()}};
 
-    vector<unique_ptr<Statement>> args;
+    vector<unique_ptr<runtime::Executable>> args;
     args.push_back(make_unique<VariableValue>("word"s));
     args.push_back(make_unique<NumericConst>(57));
     args.push_back(make_unique<StringConst>("Python"s));
