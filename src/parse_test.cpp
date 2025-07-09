@@ -241,8 +241,7 @@ print r, c, t1, t2
     auto tree = ParseProgramFromString(program);
     tree->Execute(closure, context);
 
-    ASSERT_EQUAL(context.output.str(),
-                 "Rect(10x20) Circle(52) Triangle(3, 4, 5) Wrong triangle\n"s);
+    ASSERT_EQUAL(context.output.str(), "Rect(10x20) Circle(52) Triangle(3, 4, 5) Wrong triangle\n"s);
 }
 
 void TestSelfInConstructor() {

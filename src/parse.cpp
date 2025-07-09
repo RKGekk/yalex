@@ -146,8 +146,7 @@ private:
             if (id_list.empty()) {
                 return make_unique<ast::Assignment>(std::move(last_name), ParseTest());
             }
-            return make_unique<ast::FieldAssignment>(ast::VariableValue{std::move(id_list)},
-                                                     std::move(last_name), ParseTest());
+            return make_unique<ast::FieldAssignment>(ast::VariableValue{std::move(id_list)}, std::move(last_name), ParseTest());
         }
         m_lexer.Expect<TokenType::Char>('(');
         m_lexer.NextToken();
@@ -163,8 +162,7 @@ private:
         m_lexer.Expect<TokenType::Char>(')');
         m_lexer.NextToken();
 
-        return make_unique<ast::MethodCall>(make_unique<ast::VariableValue>(std::move(id_list)),
-                                            std::move(last_name), std::move(args));
+        return make_unique<ast::MethodCall>(make_unique<ast::VariableValue>(std::move(id_list)), std::move(last_name), std::move(args));
     }
 
     // Expr -> Adder ['+'/'-' Adder]*
@@ -350,33 +348,27 @@ private:
 
         if (tok == '<') {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::Less, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::Less, std::move(result), ParseExpression());
         }
         if (tok == '>') {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::Greater, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::Greater, std::move(result), ParseExpression());
         }
         if (tok.Is<TokenType::Eq>()) {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::Equal, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::Equal, std::move(result), ParseExpression());
         }
         if (tok.Is<TokenType::NotEq>()) {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::NotEqual, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::NotEqual, std::move(result), ParseExpression());
         }
         if (tok.Is<TokenType::LessOrEq>()) {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::LessOrEqual, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::LessOrEqual, std::move(result), ParseExpression());
         }
         if (tok.Is<TokenType::GreaterOrEq>()) {
             m_lexer.NextToken();
-            return make_unique<ast::Comparison>(runtime::GreaterOrEqual, std::move(result),
-                                                ParseExpression());
+            return make_unique<ast::Comparison>(runtime::GreaterOrEqual, std::move(result), ParseExpression());
         }
         return result;
     }
