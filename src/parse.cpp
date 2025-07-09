@@ -10,7 +10,7 @@ namespace TokenType = parse::token_type;
 
 namespace {
 bool operator==(const parse::Token& token, char c) {
-    const auto* p = token.TryAs<TokenType::Char>();
+    const TokenType::Char* p = token.TryAs<TokenType::Char>();
     return p != nullptr && p->value == c;
 }
 
@@ -25,8 +25,12 @@ public:
     // Program -> eps
     //          | Statement \n Program
     unique_ptr<runtime::Executable> ParseProgram() {
-        auto result = make_unique<ast::Compound>();
+        std::unique_ptr<ast::Compound> result = make_unique<ast::Compound>();
         while (!m_lexer.CurrentToken().Is<TokenType::Eof>()) {
+            if(m_lexer.CurrentToken().Is<TokenType::Newline>()) {
+                m_lexer.NextToken();
+                continue;
+            }
             result->AddStatement(ParseStatement());
         }
 
@@ -41,7 +45,7 @@ private:
 
         m_lexer.NextToken();
 
-        auto result = make_unique<ast::Compound>();
+        std::unique_ptr<ast::Compound> result = make_unique<ast::Compound>();
         while (!m_lexer.CurrentToken().Is<TokenType::Dedent>()) {
             result->AddStatement(ParseStatement());
         }
@@ -88,11 +92,11 @@ private:
 
         const runtime::Class* base_class = nullptr;
         if (m_lexer.CurrentToken() == '(') {
-            auto name = m_lexer.ExpectNext<TokenType::Id>().value;
+            std::string name = m_lexer.ExpectNext<TokenType::Id>().value;
             m_lexer.ExpectNext<TokenType::Char>(')');
             m_lexer.NextToken();
 
-            auto it = m_declared_classes.find(name);
+            runtime::Closure::iterator it = m_declared_classes.find(name);
             if (it == m_declared_classes.end()) {
                 throw ParseError("Base class "s + name + " not found for class "s + class_name);
             }
@@ -108,10 +112,7 @@ private:
         m_lexer.Expect<TokenType::Dedent>();
         m_lexer.NextToken();
 
-        auto [it, inserted] = m_declared_classes.insert({
-            class_name,
-            runtime::ObjectHolder::Own(runtime::Class(class_name, std::move(methods), base_class)),
-        });
+        auto [it, inserted] = m_declared_classes.insert({class_name, runtime::ObjectHolder::Own(runtime::Class(class_name, std::move(methods), base_class))});
 
         if (!inserted) {
             throw ParseError("Class "s + class_name + " already exists"s);
@@ -130,8 +131,8 @@ private:
         return result;
     }
 
-    //  AssgnOrCall -> DottedIds = Expr
-    //               | DottedIds '(' ExprList ')'
+    //  AssignmentOrCall -> DottedIds = Expr
+    //                   | DottedIds '(' ExprList ')'
     unique_ptr<runtime::Executable> ParseAssignmentOrCall() {
         m_lexer.Expect<TokenType::Id>();
 
@@ -211,7 +212,7 @@ private:
     unique_ptr<runtime::Executable> ParseMult() {
         if (m_lexer.CurrentToken() == '(') {
             m_lexer.NextToken();
-            auto result = ParseTest();
+            unique_ptr<runtime::Executable> result = ParseTest();
             m_lexer.Expect<TokenType::Char>(')');
             m_lexer.NextToken();
             return result;
@@ -220,12 +221,12 @@ private:
             m_lexer.NextToken();
             return make_unique<ast::Mult>(ParseMult(), make_unique<ast::NumericConst>(-1));
         }
-        if (const auto* num = m_lexer.CurrentToken().TryAs<TokenType::Number>()) {
+        if (const TokenType::Number* num = m_lexer.CurrentToken().TryAs<TokenType::Number>()) {
             int result = num->value;
             m_lexer.NextToken();
             return make_unique<ast::NumericConst>(result);
         }
-        if (const auto* str = m_lexer.CurrentToken().TryAs<TokenType::String>()) {
+        if (const TokenType::String* str = m_lexer.CurrentToken().TryAs<TokenType::String>()) {
             string result = str->value;
             m_lexer.NextToken();
             return make_unique<ast::StringConst>(std::move(result));
@@ -258,17 +259,14 @@ private:
             m_lexer.Expect<TokenType::Char>(')');
             m_lexer.NextToken();
 
-            auto method_name = names.back();
+            std::string method_name = names.back();
             names.pop_back();
 
             if (!names.empty()) {
-                return make_unique<ast::MethodCall>(
-                    make_unique<ast::VariableValue>(std::move(names)), std::move(method_name),
-                    std::move(args));
+                return make_unique<ast::MethodCall>(make_unique<ast::VariableValue>(std::move(names)), std::move(method_name), std::move(args));
             }
-            if (auto it = m_declared_classes.find(method_name); it != m_declared_classes.end()) {
-                return make_unique<ast::NewInstance>(
-                    static_cast<const runtime::Class&>(*it->second), std::move(args));  // NOLINT
+            if (runtime::Closure::iterator it = m_declared_classes.find(method_name); it != m_declared_classes.end()) {
+                return make_unique<ast::NewInstance>(static_cast<const runtime::Class&>(*it->second), std::move(args));
             }
             if (method_name == "str"sv) {
                 if (args.size() != 1) {
@@ -297,12 +295,12 @@ private:
         m_lexer.Expect<TokenType::If>();
         m_lexer.NextToken();
 
-        auto condition = ParseTest();
+        unique_ptr<runtime::Executable> condition = ParseTest();
 
         m_lexer.Expect<TokenType::Char>(':');
         m_lexer.NextToken();
 
-        auto if_body = ParseSuite();
+        unique_ptr<runtime::Executable> if_body = ParseSuite();
 
         unique_ptr<runtime::Executable> else_body;
         if (m_lexer.CurrentToken().Is<TokenType::Else>()) {
@@ -311,8 +309,7 @@ private:
             else_body = ParseSuite();
         }
 
-        return make_unique<ast::IfElse>(std::move(condition), std::move(if_body),
-                                        std::move(else_body));
+        return make_unique<ast::IfElse>(std::move(condition), std::move(if_body), std::move(else_body));
     }
 
     // LogicalExpr -> AndTest [OR AndTest]
@@ -320,7 +317,7 @@ private:
     // NotTest -> [NOT] NotTest
     //          | Comparison
     unique_ptr<runtime::Executable> ParseTest() {
-        auto result = ParseAndTest();
+        unique_ptr<runtime::Executable> result = ParseAndTest();
         while (m_lexer.CurrentToken().Is<TokenType::Or>()) {
             m_lexer.NextToken();
             result = make_unique<ast::Or>(std::move(result), ParseAndTest());
@@ -329,7 +326,7 @@ private:
     }
 
     unique_ptr<runtime::Executable> ParseAndTest() {
-        auto result = ParseNotTest();
+        unique_ptr<runtime::Executable> result = ParseNotTest();
         while (m_lexer.CurrentToken().Is<TokenType::And>()) {
             m_lexer.NextToken();
             result = make_unique<ast::And>(std::move(result), ParseNotTest());
@@ -347,9 +344,9 @@ private:
 
     // Comparison -> Expr [COMP_OP Expr]
     unique_ptr<runtime::Executable> ParseComparison() {
-        auto result = ParseExpression();
+        unique_ptr<runtime::Executable> result = ParseExpression();
 
-        const auto tok = m_lexer.CurrentToken();
+        const parse::Token tok = m_lexer.CurrentToken();
 
         if (tok == '<') {
             m_lexer.NextToken();
@@ -388,7 +385,7 @@ private:
     //           | class ClassDefinition
     //           | if Condition
     unique_ptr<runtime::Executable> ParseStatement() {
-        const auto& tok = m_lexer.CurrentToken();
+        const parse::Token& tok = m_lexer.CurrentToken();
 
         if (tok.Is<TokenType::Class>()) {
             m_lexer.NextToken();
@@ -397,17 +394,20 @@ private:
         if (tok.Is<TokenType::If>()) {
             return ParseCondition();
         }
-        auto result = ParseSimpleStatement();
+        unique_ptr<runtime::Executable> result = ParseSimpleStatement();
+        if(m_lexer.CurrentToken().Is<TokenType::Eof>()) {
+            return result;
+        }
         m_lexer.Expect<TokenType::Newline>();
         m_lexer.NextToken();
         return result;
     }
 
-    // StatementBody -> return Expression
-    //               | print ExpressionList
-    //               | AssignmentOrCall
+    // SimpleStatement -> return Expression
+    //                 | print ExpressionList
+    //                 | AssignmentOrCall
     unique_ptr<runtime::Executable> ParseSimpleStatement() {
-        const auto& tok = m_lexer.CurrentToken();
+        const parse::Token& tok = m_lexer.CurrentToken();
 
         if (tok.Is<TokenType::Return>()) {
             m_lexer.NextToken();

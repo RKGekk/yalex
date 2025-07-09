@@ -107,7 +107,7 @@ ObjectHolder MethodCall::Execute(Closure& closure, Context& context) {
         for (const std::unique_ptr<runtime::Executable>& arg_smt : m_args) {
             args_values.push_back(arg_smt->Execute(closure, context));
         }
-        class_instance_ptr->Call(m_method, args_values, context);
+        return class_instance_ptr->Call(m_method, args_values, context);
     }
     return {};
 }

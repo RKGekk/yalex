@@ -26,7 +26,7 @@ print x + y, z + n
     runtime::DummyContext context;
 
     runtime::Closure closure;
-    auto tree = ParseProgramFromString(program);
+    unique_ptr<runtime::Executable> tree = ParseProgramFromString(program);
     tree->Execute(closure, context);
 
     ASSERT_EQUAL(context.output.str(), "9 hello, world\n"s);

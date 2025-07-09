@@ -316,7 +316,7 @@ namespace utility {
                 continue;
             }
             else {
-                if(intent_ct > detent_ct && intent_ct > 1u) {
+                if(intent_ct > detent_ct && intent_ct > 1u && detent_ct >= 1u) {
                     size_t intent_diff = intent_ct - detent_ct;
                     size_t cut_from_pos = last_not_intent_pos + 2u;
                     size_t cut_range = i - cut_from_pos;
@@ -327,7 +327,7 @@ namespace utility {
                     max_idx -= cut_range;
                     i -= cut_range;
                 }
-                else if(intent_ct < detent_ct && detent_ct > 1u) {
+                else if(intent_ct < detent_ct && intent_ct >= 1u && detent_ct > 1u) {
                     size_t intent_diff = detent_ct - intent_ct;
                     size_t cut_from_pos = last_not_intent_pos + 2u;
                     size_t cut_range = i - cut_from_pos;
